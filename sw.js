@@ -1,5 +1,5 @@
 /* FORGE FIT service worker — app offline + cache immagini esercizi */
-const CACHE='forge-fit-v4';
+const CACHE='forge-fit-v5';
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(['./','./index.html'])).then(()=>self.skipWaiting()));
 });
