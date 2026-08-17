@@ -59,6 +59,27 @@ a{color:var(--ember)}
 .ember-fill{background-image:var(--grad-ember)}
 .hatch{background-image:repeating-linear-gradient(-45deg,rgba(255,255,255,.05) 0,rgba(255,255,255,.05) 1px,transparent 1px,transparent 6px)}
 .plate{background-color:var(--surface);background-image:var(--plate-glow),var(--brush);border:1px solid var(--line)}
+/* ---- Motion — linguaggio Magic Patterns (ease-forge) ---- */
+:root{--ease-forge:cubic-bezier(.23,1,.32,1)}
+.btn,.chip,.opt,.iconbtn,.setck,.tag,.daytab button,.nav button,.search{transition:transform .18s var(--ease-forge),background-color .2s var(--ease-forge),border-color .2s var(--ease-forge),color .18s var(--ease-forge),box-shadow .28s var(--ease-forge),filter .25s var(--ease-forge)}
+.btn:active{transform:scale(.97)}
+.btn.primary:active{filter:brightness(1.08) saturate(1.08)}
+.exrow{transition:transform .18s var(--ease-forge),background-color .18s var(--ease-forge),border-color .18s var(--ease-forge)}
+.exrow:active{transform:scale(.99)}
+.card,.stat,.prog-card,.hero{transition:transform .25s var(--ease-forge),border-color .25s var(--ease-forge),box-shadow .3s var(--ease-forge)}
+@media (hover:hover){
+  .btn.primary:hover{box-shadow:0 0 30px -6px rgba(255,107,0,.75)}
+  .exrow:hover{border-color:var(--line2);transform:translateX(2px)}
+  .chip:hover,.opt:hover,.iconbtn:hover,.daytab button:hover{border-color:var(--ember)}
+  .card:hover,.stat:hover{border-color:var(--line2)}
+}
+@keyframes riseIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+main>*{animation:riseIn .5s var(--ease-forge) both}
+main>*:nth-child(2){animation-delay:.05s}main>*:nth-child(3){animation-delay:.1s}main>*:nth-child(4){animation-delay:.15s}main>*:nth-child(5){animation-delay:.2s}main>*:nth-child(6){animation-delay:.25s}
+.exrow{animation:riseIn .42s var(--ease-forge) both}
+.exrow:nth-child(1){animation-delay:.02s}.exrow:nth-child(2){animation-delay:.06s}.exrow:nth-child(3){animation-delay:.1s}.exrow:nth-child(4){animation-delay:.14s}.exrow:nth-child(5){animation-delay:.18s}.exrow:nth-child(6){animation-delay:.22s}.exrow:nth-child(7){animation-delay:.26s}.exrow:nth-child(8){animation-delay:.3s}
+.exrow:nth-child(n+9){animation:none}
+.logo{animation:heat 3.2s ease-in-out infinite}
 
 /* ---------- App chrome ---------- */
 .topbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;
@@ -172,6 +193,7 @@ main{padding:6px 16px calc(var(--nav-h) + 28px) 16px;animation:fade .35s ease}
 .hero .day-ex{margin-top:14px;display:flex;flex-direction:column;gap:2px}
 .dayline{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
 .dayline .n{width:24px;font-family:var(--mono);color:var(--txt3);font-size:13px;flex:none}
+.dayline .ln-eq{flex:none;width:20px;text-align:center;font-size:14px;line-height:1}
 .dayline b{font-weight:600;font-size:14px;flex:1}
 .dayline .s{font-family:var(--mono);font-size:12.5px;color:var(--ember-hi)}
 
@@ -365,13 +387,18 @@ function catOk(cat,cond){
   if(cond&&['plyometrics','cardio'].includes(cat))return true;
   return false;
 }
-function pickExercise(slot,allow,userLv,cond,caution,used,r){
+function pickExercise(slot,allow,userLv,cond,caution,used,r,prefer){
   const base=EXDB.filter(e=>e.equipment&&allow.has(e.equipment)&&!used.has(e.id)&&catOk(e.category,cond)&&levelOk(e.level,userLv,caution)&&e.primaryMuscles.some(m=>slot.muscles.includes(m)));
   let pool=base;
   if(slot.compound){const c=base.filter(e=>e.mechanic==='compound');if(c.length)pool=c}
   if(slot.iso){const c=base.filter(e=>e.mechanic==='isolation');if(c.length)pool=c}
   if(!pool.length){ // relax: any muscle match in same group ignoring compound
     pool=EXDB.filter(e=>e.equipment&&allow.has(e.equipment)&&!used.has(e.id)&&catOk(e.category,cond)&&e.primaryMuscles.some(m=>slot.muscles.includes(m)));
+  }
+  // misto: preferisci corpo libero ('body') o sovraccarico ('load'), con fallback se vuoto
+  if(prefer&&pool.length){
+    const want=prefer==='body'?pool.filter(e=>e.equipment==='body only'):pool.filter(e=>e.equipment!=='body only');
+    if(want.length)pool=want;
   }
   if(!pool.length)return null;
   return shuffle(pool,r)[0];
@@ -382,19 +409,24 @@ function genProgram(p,seedExtra=0){
   const g=GOALS[p.goal], allow=allowedRaw(p.equip), nEx=PERSESS[p.time]||5;
   const split=splitFor(p.days,p.goal,p.style);
   const caution=(p.cautions&&p.cautions.length&&!p.cautions.includes('nessuna'));
+  const mix=p.style==='misto'&&p.equip.includes('corpo')&&p.equip.some(k=>k!=='corpo');
   const seed=(p.goal.length*131+p.days*17+p.time+seedExtra*7919)|0;
   const used=new Set();
   const days=split.map((type,di)=>{
     const r=rng(seed+di*104729+seedExtra*1299709);
     const slots=DAYDEF[type].map(parseSlot);
     const exs=[]; const dayUsed=new Set();
+    let preferBody=(di%2===0); // misto: alterna corpo libero / sovraccarico, sfasato per giorno
     for(const slot of slots){
       if(exs.length>=nEx)break;
+      const prefer=mix?(preferBody?'body':'load'):null;
       // prefer globally-fresh exercises for variety across days
-      let ex=pickExercise(slot,allow,p.level,g.cond,caution,new Set([...used,...dayUsed]),r);
+      let ex=pickExercise(slot,allow,p.level,g.cond,caution,new Set([...used,...dayUsed]),r,prefer);
       // fallback: allow exercises used on other days, but never twice in the same day
-      if(!ex)ex=pickExercise(slot,allow,p.level,g.cond,caution,dayUsed,r);
-      if(ex){dayUsed.add(ex.id);used.add(ex.id);
+      if(!ex)ex=pickExercise(slot,allow,p.level,g.cond,caution,dayUsed,r,prefer);
+      // ultima spiaggia: ignora la preferenza pur di riempire lo slot
+      if(!ex&&mix)ex=pickExercise(slot,allow,p.level,g.cond,caution,dayUsed,r,null);
+      if(ex){dayUsed.add(ex.id);used.add(ex.id);preferBody=!preferBody;
         const isIso=slot.iso||ex.mechanic==='isolation';
         exs.push({id:ex.id,sets:isIso?Math.max(3,g.sets-1):g.sets,lo:g.lo,hi:g.hi,rest:isIso?Math.max(45,g.rest-30):g.rest});
       }
@@ -403,8 +435,8 @@ function genProgram(p,seedExtra=0){
   });
   return {
     id:'p'+Date.now()+seedExtra,
-    name:g.label+' · '+p.days+'gg',
-    goal:p.goal, split:split.join('-'), weeks:4,
+    name:g.label+' · '+p.days+'gg'+(mix?' · misto':''),
+    goal:p.goal, mixed:mix, split:split.join('-'), weeks:4,
     days, createdAt:Date.now(), source:'generated', active:false
   };
 }
@@ -545,7 +577,7 @@ function viewOggi(){
        <div style="text-align:right"><div class="mono" style="font-size:13px;color:var(--txt3)">Giorno</div><div class="mono" style="font-size:26px;font-weight:700;color:var(--ember-hi)">${di+1}<span style="color:var(--txt3);font-size:16px">/${prog.days.length}</span></div></div>
      </div>
      <div class="day-ex">
-       ${day.exercises.map((x,i)=>{const e=BYID[x.id];return `<div class="dayline"><span class="n">${String(i+1).padStart(2,'0')}</span><b>${esc(e?e.name:'—')}</b><span class="s">${x.sets}×${x.lo}-${x.hi}</span></div>`}).join('')}
+       ${day.exercises.map((x,i)=>{const e=BYID[x.id];const body=e&&e.equipment==='body only';return `<div class="dayline"><span class="n">${String(i+1).padStart(2,'0')}</span><span class="ln-eq" title="${body?'Corpo libero':'Sovraccarico'}">${body?'🤸':'🏋️'}</span><b>${esc(e?e.name:'—')}</b><span class="s">${x.sets}×${x.lo}-${x.hi}</span></div>`}).join('')}
      </div>
      <button class="btn primary" style="margin-top:16px" onclick="startSession('${prog.id}',${di})">${svg(I.play)} Inizia allenamento</button>
    </div>
@@ -931,20 +963,20 @@ const OB_STEPS=[
  {key:'time',type:'single',q:'Quanto tempo per sessione?',sub:'Decide quanti esercizi inserire.',
   opts:[30,45,60,90].map(t=>({v:t,label:t+' minuti',sub:'~'+PERSESS[t]+' esercizi'}))},
  {key:'style',type:'single',q:'Come preferisci strutturare?',
-  opts:[{v:'auto',label:'Decidi tu',sub:'Lascio scegliere all\'app',emoji:'✨'},{v:'full',label:'Total body',sub:'Tutto il corpo ogni seduta',emoji:'🔁'},{v:'split',label:'Split',sub:'Gruppi muscolari separati',emoji:'🧩'}]},
+  opts:[{v:'misto',label:'Misto calistenico + pesi',sub:'Ogni seduta mescola corpo libero e sovraccarichi',emoji:'🤸'},{v:'auto',label:'Decidi tu',sub:'Lascio scegliere all\'app',emoji:'✨'},{v:'full',label:'Total body',sub:'Tutto il corpo ogni seduta',emoji:'🔁'},{v:'split',label:'Split',sub:'Gruppi muscolari separati',emoji:'🧩'}]},
  {key:'giornata',type:'single',q:'Com\'è la tua giornata tipo?',sub:'Per calibrare volume e recupero.',
   opts:[{v:'fisico',label:'Lavoro fisico pesante',emoji:'🏗️'},{v:'inpiedi',label:'In piedi / in movimento',emoji:'🚶'},{v:'sedentario',label:'Sedentaria / ufficio',emoji:'💺'}]},
  {key:'cautions',type:'multi',q:'Zone da gestire con cautela?',sub:'Opzionale. Eviterò esercizi troppo avanzati su queste aree.',opt:true,
   opts:[{v:'nessuna',label:'Nessuna',emoji:'✅'},{v:'schiena',label:'Schiena / lombari',emoji:'🩹'},{v:'spalle',label:'Spalle',emoji:'🩹'},{v:'ginocchia',label:'Ginocchia',emoji:'🩹'},{v:'gomiti',label:'Gomiti',emoji:'🩹'}]}
 ];
-let OB={step:0,data:{equip:['corpo','kb','manubri','bilanciere'],style:'auto',cautions:[],h:186,w:86,age:40},editing:false};
+let OB={step:0,data:{equip:['corpo','kb','manubri','bilanciere'],style:'misto',cautions:[],h:186,w:86,age:40},editing:false};
 function renderOnboarding(){
   if(OB.step===0&&!OB.editing){
     ov().innerHTML=`<div class="ob"><div class="ob-body" style="display:flex;flex-direction:column;justify-content:center;text-align:center">
       <div style="width:78px;height:78px;border-radius:22px;background:var(--grad-ember);display:grid;place-items:center;margin:0 auto 22px;box-shadow:0 0 40px rgba(255,106,26,.5)">${svg(I.flame,'')}</div>
       <div class="eyebrow">Il tuo coach tascabile</div>
       <h1 class="stamp" style="font-size:42px;font-weight:700;margin:8px 0 12px;letter-spacing:.06em;text-transform:uppercase">FORGE<span class="ember-text"> FIT</span></h1>
-      <p class="muted" style="font-size:15px;max-width:300px;margin:0 auto 6px">Schede su misura, ${EXDB.length} esercizi con immagini, tracciamento progressi e sovraccarico progressivo.</p>
+      <p class="muted" style="font-size:15px;max-width:300px;margin:0 auto 6px">Allenamento <b style="color:var(--txt)">misto calistenico + pesi</b>, su misura per te: ${EXDB.length} esercizi con immagini, progressi e sovraccarico progressivo.</p>
     </div><div class="ob-foot"><button class="btn primary" onclick="OB.step=1;renderOnboarding()">${svg(I.flame)} Inizia</button></div></div>`;
     return;
   }
