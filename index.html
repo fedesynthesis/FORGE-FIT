@@ -90,6 +90,15 @@ main.nav-fwd{animation:slideFwd .34s var(--ease-forge)}
 main.nav-back{animation:slideBack .34s var(--ease-forge)}
 @keyframes indIn{from{transform:scaleX(0);opacity:0}to{transform:scaleX(1);opacity:1}}
 @keyframes navPop{0%{transform:scale(.7);opacity:.3}60%{transform:scale(1.18)}100%{transform:scale(1);opacity:1}}
+/* app viva: feedback pressione + celebrazioni */
+.iconbtn:active,.chip:active,.daytab button:active,.fav:active,.linkbtn:active{transform:scale(.93)}
+.setck:active{transform:scale(.88)}
+@keyframes ckPop{0%{transform:scale(1)}40%{transform:scale(1.35)}100%{transform:scale(1)}}
+.setck.pop{animation:ckPop .4s var(--ease-forge)}
+@keyframes doneFlash{0%{background:rgba(34,197,94,.22)}100%{background:transparent}}
+.set-r.flash{animation:doneFlash .6s ease}
+@keyframes toastIn{0%{opacity:0;transform:translateX(-50%) translateY(14px) scale(.9)}60%{transform:translateX(-50%) translateY(-2px) scale(1.02)}100%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
+.stat .v span[data-count]{display:inline-block}
 
 /* ---------- App chrome ---------- */
 .topbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;
@@ -269,7 +278,7 @@ main{padding:6px 16px calc(var(--nav-h) + 28px) 16px;animation:fade .35s ease}
 .empty svg{width:44px;height:44px;color:var(--line2);margin-bottom:14px}
 .toast{position:fixed;bottom:calc(var(--nav-h) + 20px);left:50%;transform:translateX(-50%);z-index:300;
   background:var(--surface3);border:1px solid var(--line2);color:var(--txt);padding:12px 18px;border-radius:12px;
-  font-size:14px;font-weight:600;box-shadow:var(--sh);max-width:90%;text-align:center;animation:fade .25s}
+  font-size:14px;font-weight:600;box-shadow:var(--sh);max-width:90%;text-align:center;animation:toastIn .35s var(--ease-forge)}
 .toast.ok{border-color:rgba(67,184,91,.4)} .toast.ember{border-color:var(--ember)}
 .spinner{width:30px;height:30px;border:3px solid var(--line2);border-top-color:var(--ember);border-radius:50%;animation:spin .8s linear infinite;margin:30px auto}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -300,7 +309,7 @@ label.fld{display:block;font-size:12.5px;color:var(--txt2);font-weight:600;margi
 /* ============================ FORGE FIT — core ============================ */
 const IMG='https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/';
 const DB_URL='https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/dist/exercises.json';
-const APP_VERSION='v7', APP_BUILD='17 ago 2026'; /* tienimi allineato a CACHE in sw.js */
+const APP_VERSION='v8', APP_BUILD='17 ago 2026'; /* tienimi allineato a CACHE in sw.js */
 
 /* ---- storage (localStorage, persiste su iPhone / GitHub Pages) ---- */
 async function sget(k){try{return localStorage.getItem('ff_'+k)}catch(e){return null}}
@@ -541,7 +550,25 @@ function render(){
   if(TAB==='esercizi')mountEserciziEvents();
   if(_dir){const m=app().querySelector('main');if(m)m.classList.add(_dir>0?'nav-fwd':'nav-back')}
   LASTTAB=TAB;
+  animateCounters();
   window.scrollTo(0,0);
+}
+/* contatori animati (app viva) */
+function animateCounters(){
+  const els=document.querySelectorAll('[data-count]');
+  els.forEach(function(el){
+    const target=parseFloat(el.getAttribute('data-count'))||0;
+    const dec=parseInt(el.getAttribute('data-dec')||'0',10);
+    if(target<=0||document.hidden||!window.requestAnimationFrame){el.textContent=target.toFixed(dec);return}
+    const dur=700, t0=performance.now();
+    function step(now){
+      const p=Math.min(1,(now-t0)/dur), e=1-Math.pow(1-p,3);
+      el.textContent=(target*e).toFixed(dec);
+      if(p<1)requestAnimationFrame(step); else el.textContent=target.toFixed(dec);
+    }
+    requestAnimationFrame(step);
+    setTimeout(function(){el.textContent=target.toFixed(dec)},dur+150); // rete di sicurezza
+  });
 }
 
 /* ============================ OGGI ============================ */
@@ -571,9 +598,9 @@ function viewOggi(){
   const thisWeek=S.history.filter(h=>Date.now()-h.date<7*864e5).length;
   let html=`
    <div class="stat-grid" style="margin-top:6px">
-     <div class="stat"><div class="v">${S.history.length}</div><div class="l">Allenamenti</div></div>
-     <div class="stat"><div class="v">${thisWeek}</div><div class="l">Settimana</div></div>
-     <div class="stat"><div class="v">${streak()}<small> gg</small></div><div class="l">Serie</div></div>
+     <div class="stat"><div class="v"><span data-count="${S.history.length}">0</span></div><div class="l">Allenamenti</div></div>
+     <div class="stat"><div class="v"><span data-count="${thisWeek}">0</span></div><div class="l">Settimana</div></div>
+     <div class="stat"><div class="v"><span data-count="${streak()}">0</span><small> gg</small></div><div class="l">Serie</div></div>
    </div>`;
   if(!prog){
     html+=`<div class="card" style="margin-top:18px;text-align:center;padding:26px 18px">
@@ -873,9 +900,9 @@ function viewProgressi(){
   if(!PROGEX||!exH.includes(PROGEX))PROGEX=exH[0]||null;
   const wk=weeklyVolume();
   let html=`<div class="stat-grid" style="margin-top:6px">
-     <div class="stat"><div class="v">${S.history.length}</div><div class="l">Sessioni</div></div>
-     <div class="stat"><div class="v">${(totalVolume()/1000).toFixed(1)}<small> t</small></div><div class="l">Volume totale</div></div>
-     <div class="stat"><div class="v">${S.favorites.length}</div><div class="l">Preferiti</div></div>
+     <div class="stat"><div class="v"><span data-count="${S.history.length}">0</span></div><div class="l">Sessioni</div></div>
+     <div class="stat"><div class="v"><span data-count="${(totalVolume()/1000).toFixed(1)}" data-dec="1">0</span><small> t</small></div><div class="l">Volume totale</div></div>
+     <div class="stat"><div class="v"><span data-count="${S.favorites.length}">0</span></div><div class="l">Preferiti</div></div>
    </div>
    <div class="card" style="margin-top:16px"><div class="eyebrow">Volume settimanale (tonnellate)</div>
      <div style="margin-top:10px">${barChart(wk.map(w=>w.v),wk.map(w=>w.l))}</div></div>`;
@@ -1105,7 +1132,7 @@ function sessEx(en,ei){
         <span class="si">${si+1}</span>
         <input class="setinput" type="number" inputmode="decimal" placeholder="${sg?sg.suggest:'–'}" value="${s.weight}" data-e="${ei}" data-s="${si}" data-f="weight">
         <input class="setinput" type="number" inputmode="numeric" placeholder="${en.target?en.target.lo:'–'}" value="${s.reps}" data-e="${ei}" data-s="${si}" data-f="reps">
-        <button class="setck ${s.done?'on':''}" onclick="toggleSet(${ei},${si})">${svg(I.check)}</button>
+        <button class="setck ${s.done?'on':''}" data-e="${ei}" data-s="${si}" onclick="toggleSet(${ei},${si})">${svg(I.check)}</button>
       </div>`).join('')}
     </div>
     <button class="btn sm ghost" style="margin-top:8px;width:100%" onclick="addSet(${ei})">${svg(I.plus)} Serie</button>
@@ -1118,8 +1145,12 @@ function bindSessInputs(){
 }
 function toggleSet(ei,si){
   const st=SESSION.entries[ei].sets[si];st.done=!st.done;
-  if(st.done){const en=SESSION.entries[ei];startRest(en.target?en.target.rest:90)}
+  if(st.done){const en=SESSION.entries[ei];startRest(en.target?en.target.rest:90);if('vibrate'in navigator)try{navigator.vibrate(30)}catch(e){}}
   renderSession();
+  if(st.done){
+    var b=document.querySelector('.setck[data-e="'+ei+'"][data-s="'+si+'"]');
+    if(b){b.classList.add('pop');var row=b.closest('.set-r');if(row)row.classList.add('flash')}
+  }
 }
 function addSet(ei){const en=SESSION.entries[ei];const last=en.sets[en.sets.length-1]||{weight:'',reps:''};en.sets.push({weight:last.weight,reps:'',done:false});renderSession()}
 function sessAddExercise(){openPicker(id=>{SESSION.entries.push({id,target:null,sets:[{weight:'',reps:'',done:false}]});closeSheet();renderSession()})}
@@ -1138,6 +1169,7 @@ function finishSession(){
   // detect new PRs
   let prs=[];sess.entries.forEach(e=>{let b=0;e.sets.forEach(s=>{if(s.weight>0)b=Math.max(b,epley(s.weight,s.reps||1))});if(b&&(!prevRecords[e.id]||b>prevRecords[e.id]))prs.push({id:e.id,v:b})});
   SESSION=null;clearInterval(SESS_TICK);REST=null;
+  if('vibrate'in navigator)try{navigator.vibrate(prs.length?[40,50,40,50,70]:[30,40,30])}catch(e){}
   if(prs.length){showPR(prs)}else{ov().innerHTML='';TAB='progressi';render();toast('Allenamento salvato 💪','ok')}
 }
 function showPR(prs){
