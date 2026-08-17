@@ -80,6 +80,13 @@ main>*:nth-child(2){animation-delay:.05s}main>*:nth-child(3){animation-delay:.1s
 .exrow:nth-child(1){animation-delay:.02s}.exrow:nth-child(2){animation-delay:.06s}.exrow:nth-child(3){animation-delay:.1s}.exrow:nth-child(4){animation-delay:.14s}.exrow:nth-child(5){animation-delay:.18s}.exrow:nth-child(6){animation-delay:.22s}.exrow:nth-child(7){animation-delay:.26s}.exrow:nth-child(8){animation-delay:.3s}
 .exrow:nth-child(n+9){animation:none}
 .logo{animation:heat 3.2s ease-in-out infinite}
+/* transizioni direzionali tra i menu + nav viva */
+@keyframes slideFwd{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
+@keyframes slideBack{from{opacity:0;transform:translateX(-28px)}to{opacity:1;transform:none}}
+main.nav-fwd{animation:slideFwd .34s var(--ease-forge)}
+main.nav-back{animation:slideBack .34s var(--ease-forge)}
+@keyframes indIn{from{transform:scaleX(0);opacity:0}to{transform:scaleX(1);opacity:1}}
+@keyframes navPop{0%{transform:scale(.7);opacity:.3}60%{transform:scale(1.18)}100%{transform:scale(1);opacity:1}}
 
 /* ---------- App chrome ---------- */
 .topbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;
@@ -102,13 +109,14 @@ main{padding:6px 16px calc(var(--nav-h) + 28px) 16px;animation:fade .35s ease}
 /* ---------- Bottom nav ---------- */
 .nav{position:fixed;left:0;right:0;bottom:0;z-index:50;max-width:520px;margin:0 auto;
   display:grid;grid-template-columns:repeat(5,1fr);
-  background:rgba(20,23,29,.92);backdrop-filter:blur(18px);border-top:1px solid var(--line);
+  background:rgba(15,15,16,.92);backdrop-filter:blur(18px);border-top:1px solid var(--line);
   padding-bottom:env(safe-area-inset-bottom)}
 .nav button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 0 8px;color:var(--txt3);
   font-size:10.5px;font-weight:600;letter-spacing:.02em;position:relative}
 .nav button svg{width:23px;height:23px;stroke-width:1.9}
 .nav button.on{color:var(--ember)}
-.nav button.on::before{content:"";position:absolute;top:0;width:26px;height:3px;border-radius:0 0 4px 4px;background:var(--grad-ember);box-shadow:0 0 10px var(--ember)}
+.nav button.on::before{content:"";position:absolute;top:0;width:26px;height:3px;border-radius:0 0 4px 4px;background:var(--grad-ember);box-shadow:0 0 10px var(--ember);transform-origin:center;animation:indIn .38s var(--ease-forge)}
+.nav button.on svg{animation:navPop .42s var(--ease-forge)}
 
 /* ---------- Cards ---------- */
 .card{background-color:var(--surface);background-image:var(--plate-glow),var(--brush);border:1px solid var(--line);border-radius:var(--r);padding:16px}
@@ -296,7 +304,7 @@ async function sset(k,v){try{localStorage.setItem('ff_'+k,typeof v==='string'?v:
 
 let EXDB=[], BYID={};
 const S={profile:null,programs:[],history:[],favorites:[],prefs:{unit:'kg'},trans:{}};
-let TAB='oggi', SESSION=null, REST=null;
+let TAB='oggi', LASTTAB=null, SESSION=null, REST=null;
 
 async function loadAll(){
   const keys=['profile','programs','history','favorites','prefs','trans'];
@@ -508,6 +516,8 @@ function toggleFav(id){const i=S.favorites.indexOf(id);if(i>=0)S.favorites.splic
 function render(){
   if(!S.profile){renderOnboarding();return}
   ov().innerHTML='';
+  const _tabs=['oggi','schede','esercizi','progressi','profilo'];
+  const _dir=(LASTTAB&&LASTTAB!==TAB)?(_tabs.indexOf(TAB)>_tabs.indexOf(LASTTAB)?1:-1):0;
   const title={oggi:'Oggi',schede:'Le mie schede',esercizi:'Esercizi',progressi:'Progressi',profilo:'Profilo'}[TAB];
   let body='';
   if(TAB==='oggi')body=viewOggi();
@@ -525,6 +535,8 @@ function render(){
       ${['oggi','schede','esercizi','progressi','profilo'].map(t=>`<button class="${TAB===t?'on':''}" onclick="TAB='${t}';render()">${svg(I[t])}${{oggi:'Oggi',schede:'Schede',esercizi:'Esercizi',progressi:'Progressi',profilo:'Profilo'}[t]}</button>`).join('')}
     </nav>`;
   if(TAB==='esercizi')mountEserciziEvents();
+  if(_dir){const m=app().querySelector('main');if(m)m.classList.add(_dir>0?'nav-fwd':'nav-back')}
+  LASTTAB=TAB;
   window.scrollTo(0,0);
 }
 
