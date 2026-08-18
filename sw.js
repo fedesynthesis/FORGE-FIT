@@ -1,7 +1,10 @@
 /* FORGE FIT service worker — app offline + cache immagini esercizi */
-const CACHE='forge-fit-v8';
+const CACHE='forge-fit-v9';
 self.addEventListener('install',e=>{
-  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(['./','./index.html'])).then(()=>self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(c=>{
+    c.add('https://cdn.jsdelivr.net/npm/motion@13.1.0/dist/motion.js').catch(()=>{}); // best-effort (offline anim)
+    return c.addAll(['./','./index.html']);
+  }).then(()=>self.skipWaiting()));
 });
 self.addEventListener('activate',e=>{
   e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
